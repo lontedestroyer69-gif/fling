@@ -1,91 +1,96 @@
 -- Game: Fish It
--- Deskripsi: Permanent Auto-Scan (Anti Pindah Server / Anti Rejoin)
--- Kontrol: Tekan X untuk ON/OFF
+-- Taktik: SimpleSpy Hook Engine (100% Auto-Scan Tanpa Tertukar)
+-- Kontrol: Pancing manual 1x sampai ikan ditarik -> Otomatis berubah jadi FULL AUTO!
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local NetFolder = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):FindFirstChild("sleitnick_net@0.2.0").net
 
 local RF_Cast, RF_Land, RE_Catch
+local isRunning = false
+local readyToAuto = false
 
-print("=========================================")
-print("MENJALANKAN BYPASS AUTO-SCANNER...")
-print("=========================================")
+print("====================================================")
+print("SYSTEM: MENGAKTIFKAN ENGINE SIMPLESPY...")
+print("SILAKAN MEMANCING MANUAL 1 KALI UNTUK SINKRONISASI!")
+print("====================================================")
 
--- Sistem Scan Pintar: Memisahkan remote berdasarkan jenis dan struktur aslinya
-for _, child in pairs(NetFolder:GetChildren()) do
-    if child:IsA("RemoteFunction") then
-        -- Game ini biasanya menyusun nama Cast secara alfabetis atau posisi indeks tertentu
-        if not RF_Cast then
-            RF_Cast = child
-        else
-            RF_Land = child
+-- ====================================================================
+-- ENGINE UTAMA: Mencegat Remote Langsung dari Inti Game (Metatable Hook)
+-- ====================================================================
+local oldInvoke
+oldInvoke = hookmetamethod(game, "__index", function(self, key)
+    if not readyToAuto and self:IsDescendantOf(NetFolder) then
+        if self:IsA("RemoteFunction") and key == "InvokeServer" then
+            return function(obj, ...)
+                local args = {...}
+                
+                -- SimpleSpy Logic: Membedakan Cast & Land berdasarkan jumlah argumen di dalamnya
+                if args[1] and type(args[1]) == "table" then
+                    local data = args[1]
+                    if data[3] and not data[1] then
+                        -- Jika hanya mengirim [3] (timestamp), ini adalah CAST (Lempar)
+                        RF_Cast = obj
+                        print("[SPY DETECTED] -> Remote Cast Terkunci!")
+                    elseif data[1] and data[2] then
+                        -- Jika mengirim [1] dan [2] (koordinat umpan), ini adalah LAND (Mendarat)
+                        RF_Land = obj
+                        print("[SPY DETECTED] -> Remote Land Terkunci!")
+                    end
+                end
+                return oldInvoke(self, key)(obj, ...)
+            end
         end
-    elseif child:IsA("RemoteEvent") then
-        RE_Catch = child
     end
-end
+    return oldInvoke(self, key)
+end)
 
--- Validasi darurat: Jika urutan Cast/Land terbalik pada server tertentu, kita tukar posisinya
-if RF_Cast and RF_Land then
-    -- Memastikan RF_Cast adalah remote yang menerima argumen timestamp [3] saat digunakan
-    -- Jika scanner terbalik mendeteksi, script akan otomatis menyeimbangkan posisinya
-    if string.len(RF_Cast.Name) < string.len(RF_Land.Name) then
-        local temp = RF_Cast
-        RF_Cast = RF_Land
-        RF_Land = temp
+-- Mencegat RemoteEvent Tarik Ikan
+local oldFire
+oldFire = hookmetamethod(game, "__index", function(self, key)
+    if not readyToAuto and self:IsDescendantOf(NetFolder) then
+        if self:IsA("RemoteEvent") and key == "FireServer" then
+            RE_Catch = self
+            print("[SPY DETECTED] -> Remote Catch Terkunci!")
+            print("====================================================")
+            print("SINKRONISASI SELESAI! TEKAN 'X' UNTUK FULL AUTO!")
+            print("====================================================")
+            readyToAuto = true
+        end
     end
-end
-
-if RF_Cast and RF_Land and RE_Catch then
-    print("SUCCESS: Semua Remote Berhasil Dikunci Secara Otomatis!")
-else
-    warn("ERROR: Sistem gagal mendeteksi folder Net game. Coba reset karakter.")
-end
+    return oldFire(self, key)
+end)
 
 -- ====================================================================
--- SETTING TIMING UTAMA UNTUK MENCARI "PERFECT"
+-- LOGIKA TIMING PERFECT
 -- ====================================================================
-local jedaMelayang = 1.2    -- Waktu umpan melayang di udara
-local jedaTungguIkan = 3.5  -- GANTI ANGKA INI (misal ke 3.0, 3.8, atau 4.0) jika belum Perfect terus
-local jedaReset = 2.5       -- Jeda sebelum melempar ulang
--- ====================================================================
-
-local isRunning = true -- Status awal aktif otomatis saat di-execute
+local jedaMelayang = 1.2    
+local jedaTungguIkan = 3.5  -- Sesuai diskusi, setel ini jika kebanyakan dapat 'Ok'
+local jedaReset = 2.5       
 
 local function doFullFishingCycle()
     while true do
-        if isRunning and RF_Cast and RF_Land and RE_Catch then
-            print("Memulai siklus memancing otomatis...")
-            
+        if isRunning and readyToAuto then
+            print("Siklus otomatis berjalan...")
             local currentTick = os.clock() 
             
-            -- 1. Kirim Remote Lempar Pancingan
-            local castArgs = {
-                [3] = currentTick
-            }
-            RF_Cast:InvokeServer(unpack(castArgs))
-            print("Pancingan otomatis dilempar...")
-            
+            -- 1. Lempar
+            RF_Cast:InvokeServer({[3] = currentTick})
             task.wait(jedaMelayang)
             if not isRunning then continue end 
             
-            -- 2. Kirim Remote Umpan Mendarat di Air
-            local landArgs = {
+            -- 2. Mendarat
+            RF_Land:InvokeServer({
                 [1] = -1.233184814453125,
                 [2] = 0.09342206053676161, 
                 [3] = currentTick + jedaMelayang
-            }
-            RF_Land:InvokeServer(unpack(landArgs))
-            print("Umpan mendarat. Menunggu ikan...")
-            
-            -- Jeda tunggu ikan menggigit
+            })
             task.wait(jedaTungguIkan)
             if not isRunning then continue end
             
-            -- 3. Kirim Remote Tarik Ikan (Instant Catch)
+            -- 3. Tarik (Perfect)
             RE_Catch:FireServer()
-            print("Ikan berhasil ditarik otomatis!")
+            print("Ikan ditarik otomatis!")
             
             task.wait(jedaReset)
         else
@@ -93,21 +98,17 @@ local function doFullFishingCycle()
         end
     end
 end
-
--- Jalankan Script Utama di background
 task.spawn(doFullFishingCycle)
 
--- Fungsi Tombol ON/OFF (Tekan X pada Keyboard / Virtual Keyboard Emulator)
+-- Tombol Saklar X
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end 
-    
     if input.KeyCode == Enum.KeyCode.X then
-        isRunning = not isRunning 
-        
-        if isRunning then
-            print("==== AUTO FISH DIKONDISIKAN: ON ====")
+        if readyToAuto then
+            isRunning = not isRunning 
+            print(isRunning and "==== AUTO FISH: ON ====" or "==== AUTO FISH: OFF ====")
         else
-            print("==== AUTO FISH DIKONDISIKAN: OFF (PAUSED) ====")
+            warn("Siklus belum siap! Kamu wajib mancing manual 1x dulu agar script bisa merekam kodenya.")
         end
     end
 end)
