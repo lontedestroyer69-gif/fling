@@ -8,15 +8,15 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 local humanoid = character:WaitForChild("Humanoid")
 
--- Konfigurasi Awal
+-- Konfigurasi Kecepatan Tinggi
 local FLYING = false
-local FLY_SPEED = 50       -- Kecepatan default
-local MIN_SPEED = 10       -- Batas kecepatan paling lambat
-local MAX_SPEED = 150      -- Batas aman maksimum agar tidak mudah auto-kick
-local BYPASS_INTERVAL = 4.5 
+local FLY_SPEED = 100      -- Kecepatan dasar (Bisa dinaikkan lewat tombol ']')
+local MIN_SPEED = 10       
+local MAX_SPEED = 250      -- Batas atas dinaikkan untuk mode kencang
+local BYPASS_INTERVAL = 3.5 -- Interval dipercepat untuk mengimbangi kecepatan tinggi
 local lastBypass = tick()
 local bypassActive = false
-local bypassDuration = 0.12 -- Jeda waktu jatuh bebas tanpa task.wait()
+local bypassDuration = 0.08 
 
 -- Membuat UI Indikator Kecepatan di Pojok Layar
 local screenGui = Instance.new("ScreenGui")
@@ -35,57 +35,40 @@ textLabel.Font = Enum.Font.SourceSansBold
 textLabel.Text = "Status: OFF | Speed: " .. FLY_SPEED
 textLabel.Parent = screenGui
 
--- Membuat instance Velocity untuk pergerakan
-local linearVelocity = Instance.new("LinearVelocity")
-linearVelocity.MaxForce = math.huge
-linearVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
-linearVelocity.Parent = humanoidRootPart
-linearVelocity.Enabled = false
+-- Menggunakan BodyVelocity & BodyGyro untuk stabilitas CFrame tingkat tinggi
+local bodyVelocity = Instance.new("BodyVelocity")
+bodyVelocity.maxForce = Vector3.new(0, 0, 0) -- Dimatikan saat awal
+bodyVelocity.velocity = Vector3.new(0, 0, 0)
+bodyVelocity.Parent = humanoidRootPart
 
-local attachments = humanoidRootPart:FindFirstChildOfClass("Attachment") or Instance.new("Attachment", humanoidRootPart)
-linearVelocity.Attachment0 = attachments
+local bodyGyro = Instance.new("BodyGyro")
+bodyGyro.maxTorque = Vector3.new(0, 0, 0)
+bodyGyro.Parent = humanoidRootPart
 
 -- Fungsi mendeteksi arah input pergerakan
 local function getDirection()
 	local direction = Vector3.new(0, 0, 0)
-	if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-		direction = direction + workspace.CurrentCamera.CFrame.LookVector
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-		direction = direction - workspace.CurrentCamera.CFrame.LookVector
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-		direction = direction - workspace.CurrentCamera.CFrame.RightVector
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-		direction = direction + workspace.CurrentCamera.CFrame.RightVector
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-		direction = direction + Vector3.new(0, 1, 0)
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-		direction = direction - Vector3.new(0, 1, 0)
-	end
+	if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction = direction + workspace.CurrentCamera.CFrame.LookVector end
+	if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction = direction - workspace.CurrentCamera.CFrame.LookVector end
+	if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction = direction - workspace.CurrentCamera.CFrame.RightVector end
+	if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction = direction + workspace.CurrentCamera.CFrame.RightVector end
+	if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction = direction + Vector3.new(0, 1, 0) end
+	if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then direction = direction - Vector3.new(0, 1, 0) end
 	return direction.Unit
 end
 
--- Fungsi memperbarui teks indikator UI
 local function updateUI()
 	local status = FLYING and "ON" or "OFF"
 	textLabel.Text = "Status: " .. status .. " | Speed: " .. FLY_SPEED
-	if FLYING then
-		textLabel.TextColor3 = Color3.fromRGB(0, 255, 128) 
-	else
-		textLabel.TextColor3 = Color3.fromRGB(255, 255, 255) 
-	end
+	textLabel.TextColor3 = FLYING and Color3.fromRGB(255, 85, 85) or Color3.fromRGB(255, 255, 255) -- Merah jika mode kencang aktif
 end
 
--- Loop utama pergerakan
-RunService.RenderStepped:Connect(function()
-	if FLYING then
+-- Loop utama pergerakan (Optimasi Delta Posisi)
+RunService.RenderStepped:Connect(function(deltaTime)
+	if FLYING and humanoidRootPart then
 		local currentTime = tick()
 		
-		-- Logika Perbaikan: Siklus bypass non-blocking agar tidak lag/blink
+		-- Siklus bypass diperketat untuk meredam deteksi jarak jauh
 		if not bypassActive and (currentTime - lastBypass > BYPASS_INTERVAL) then
 			bypassActive = true
 			lastBypass = currentTime
@@ -93,32 +76,40 @@ RunService.RenderStepped:Connect(function()
 		
 		if bypassActive then
 			if currentTime - lastBypass < bypassDuration then
-				-- Matikan velocity sesaat agar server mendeteksi gaya jatuh normal
-				linearVelocity.Enabled = false
-				humanoid:ChangeState(Enum.HumanoidStateType.Freefall) 
-				return -- Skip pergerakan instan pada frame ini
+				bodyVelocity.maxForce = Vector3.new(0, 0, 0)
+				bodyGyro.maxTorque = Vector3.new(0, 0, 0)
+				humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+				return
 			else
 				bypassActive = false
 				lastBypass = currentTime
 			end
 		end
 
-		-- Jika sedang tidak dalam fase bypass drop, jalankan velocity normal
-		linearVelocity.Enabled = true
-		humanoid:ChangeState(Enum.HumanoidStateType.Physics) 
+		-- Mode Aktif: Mengunci fisik gaya berat dan memanipulasi koordinat secara mikro
+		bodyVelocity.maxForce = Vector3.new(9e4, 9e4, 9e4)
+		bodyGyro.maxTorque = Vector3.new(9e4, 9e4, 9e4)
+		bodyGyro.cframe = workspace.CurrentCamera.CFrame
+		humanoid:ChangeState(Enum.HumanoidStateType.Climbing) 
 
 		local dir = getDirection()
 		if dir.Magnitude > 0 then
-			linearVelocity.VectorVelocity = dir * FLY_SPEED
+			-- Formula Delta: Menggerakkan karakter berdasarkan kalkulasi frame-rate independen (mencegah rubberband)
+			local targetVelocity = dir * FLY_SPEED
+			bodyVelocity.velocity = targetVelocity
+			
+			-- Tambahan dorongan CFrame halus agar tidak tertinggal oleh pemeriksaan server
+			humanoidRootPart.CFrame = humanoidRootPart.CFrame + (targetVelocity * deltaTime * 0.1)
 		else
-			linearVelocity.VectorVelocity = Vector3.new(0, 0, 0)
+			bodyVelocity.velocity = Vector3.new(0, -0.05, 0) -- Gaya gravitasi mikro semu
 		end
 	else
-		linearVelocity.Enabled = false
+		bodyVelocity.maxForce = Vector3.new(0, 0, 0)
+		bodyGyro.maxTorque = Vector3.new(0, 0, 0)
 	end
 end)
 
--- Deteksi Tombol (Aktivasi & Atur Speed)
+-- Deteksi Tombol
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	
@@ -130,23 +121,21 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		updateUI()
 		
 	elseif input.KeyCode == Enum.KeyCode.LeftBracket then
-		FLY_SPEED = math.max(MIN_SPEED, FLY_SPEED - 10)
+		FLY_SPEED = math.max(MIN_SPEED, FLY_SPEED - 20) -- Lompatan speed diperbesar
 		updateUI()
 		
 	elseif input.KeyCode == Enum.KeyCode.RightBracket then
-		FLY_SPEED = math.min(MAX_SPEED, FLY_SPEED + 10)
+		FLY_SPEED = math.min(MAX_SPEED, FLY_SPEED + 20)
 		updateUI()
 	end
 end)
 
--- Deteksi jika karakter respawn/mati agar UI tidak hilang
 player.CharacterAdded:Connect(function(newChar)
 	character = newChar
 	humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 	humanoid = character:WaitForChild("Humanoid")
-	attachments = humanoidRootPart:FindFirstChildOfClass("Attachment") or Instance.new("Attachment", humanoidRootPart)
-	linearVelocity.Parent = humanoidRootPart
-	linearVelocity.Attachment0 = attachments
+	bodyVelocity.Parent = humanoidRootPart
+	bodyGyro.Parent = humanoidRootPart
 	FLYING = false
 	bypassActive = false
 	updateUI()
