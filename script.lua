@@ -1,10 +1,9 @@
 --[[
-    KILASIK Multi Fling - Delta Optimized 2026
+    KILASIK Multi Fling - Delta Fixed 2026
 ]]
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
 
 local LP = Players.LocalPlayer
 local Character = LP.Character or LP.CharacterAdded:Wait()
@@ -22,7 +21,6 @@ local Frame = Instance.new("Frame")
 Frame.Size = UDim2.new(0, 350, 0, 420)
 Frame.Position = UDim2.new(0.5, -175, 0.5, -210)
 Frame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
-Frame.BorderSizePixel = 0
 Frame.Active = true
 Frame.Draggable = true
 Frame.Parent = SG
@@ -57,7 +55,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Padding = UDim.new(0,6)
 UIList.Parent = Scrolling
 
--- Fling Function (Delta Optimized)
+-- Fling Function
 local function Fling(plr)
     local TargetChar = plr.Character
     if not TargetChar or not TargetChar:FindFirstChild("HumanoidRootPart") then return end
@@ -82,7 +80,7 @@ local function Fling(plr)
     Workspace.FallenPartsDestroyHeight = -500
 end
 
--- Refresh Player List
+-- Refresh List
 local function Refresh()
     for _, v in pairs(Scrolling:GetChildren()) do
         if v:IsA("Frame") then v:Destroy() end
@@ -133,4 +131,48 @@ StartButton.Position = UDim2.new(0,15,0,335)
 StartButton.Size = UDim2.new(0.47,0,0,55)
 StartButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 StartButton.Text = "START FLING"
-StartButton.TextColor3 = Color3.new(1
+StartButton.TextColor3 = Color3.new(1,1,1)
+StartButton.Font = Enum.Font.GothamBold
+StartButton.TextSize = 17
+StartButton.Parent = Frame
+
+local StopButton = Instance.new("TextButton")
+StopButton.Position = UDim2.new(0.5,5,0,335)
+StopButton.Size = UDim2.new(0.47,0,0,55)
+StopButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+StopButton.Text = "STOP"
+StopButton.TextColor3 = Color3.new(1,1,1)
+StopButton.Font = Enum.Font.GothamBold
+StopButton.TextSize = 17
+StopButton.Parent = Frame
+
+StartButton.MouseButton1Click:Connect(function()
+    if FlingActive or next(Selected) == nil then 
+        return 
+    end
+    FlingActive = true
+    Status.Text = "FLINGING... ("..#Selected.." targets)"
+
+    task.spawn(function()
+        while FlingActive do
+            for _, target in pairs(Selected) do
+                if target and target.Character and FlingActive then
+                    pcall(Fling, target)
+                end
+                task.wait(0.4)
+            end
+            task.wait(0.3)
+        end
+    end)
+end)
+
+StopButton.MouseButton1Click:Connect(function()
+    FlingActive = false
+    Status.Text = "Fling Stopped"
+end)
+
+Players.PlayerAdded:Connect(Refresh)
+Players.PlayerRemoving:Connect(Refresh)
+Refresh()
+
+print("✅ Delta Fling Fixed & Loaded!")
