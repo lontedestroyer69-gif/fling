@@ -7,7 +7,7 @@ local player = Players.LocalPlayer
 -- KONFIGURASI BYPASS SPEED
 -- Semakin besar angka ini, semakin cepat jalannya (tapi makin rawan tersendat)
 -- Kisaran aman: 0.1 sampai 0.4
-local BOOST_POWER = 0.25 
+local BOOST_POWER = 1.25 
 
 local isSpeedEnabled = false
 
