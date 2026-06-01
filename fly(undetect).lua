@@ -108,7 +108,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end 
 	 
 	-- E untuk On/Off Terbang 
-	if input.KeyCode == Enum.KeyCode.E then 
+	if input.KeyCode == Enum.KeyCode.F then 
 		FLYING = not FLYING 
 		if not FLYING then 
 			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp) 
