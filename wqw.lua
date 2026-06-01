@@ -1,18 +1,17 @@
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
 -- ==========================================
--- 1. MEMBUAT GUI (OTOMATIS MUNCUL DI LAYAR)
+-- 1. MEMBUAT GUI UTAMA
 -- ==========================================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AntiKickTP_GUI"
+ScreenGui.Name = "ListTP_GUI"
 ScreenGui.Parent = CoreGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 250, 0, 130)
-MainFrame.Position = UDim2.new(0.5, -125, 0.4, -65)
-MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+MainFrame.Size = UDim2.new(0, 220, 0, 250)
+MainFrame.Position = UDim2.new(0.5, -110, 0.3, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
@@ -23,10 +22,10 @@ FrameCorner.CornerRadius = UDim.new(0, 8)
 FrameCorner.Parent = MainFrame
 
 local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(1, 0, 0, 30)
-TitleLabel.Text = "ANTI-KICK TP (CLICK MODE)"
+TitleLabel.Size = UDim2.new(1, 0, 0, 35)
+TitleLabel.Text = "KLIK NAMA UNTUK TP"
 TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+TitleLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
 TitleLabel.Font = Enum.Font.SourceSansBold
 TitleLabel.TextSize = 14
 TitleLabel.Parent = MainFrame
@@ -35,80 +34,104 @@ local TitleCorner = Instance.new("UICorner")
 TitleCorner.CornerRadius = UDim.new(0, 8)
 TitleCorner.Parent = TitleLabel
 
-local NameInput = Instance.new("TextBox")
-NameInput.Size = UDim2.new(0, 210, 0, 35)
-NameInput.Position = UDim2.new(0.5, -105, 0, 45)
-NameInput.PlaceholderText = "Ketik Nama Pemain..."
-NameInput.Text = ""
-NameInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-NameInput.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-NameInput.Font = Enum.Font.SourceSans
-NameInput.TextSize = 15
-NameInput.Parent = MainFrame
+-- Tempat List Pemain (Scrolling Frame agar bisa di-scroll ke bawah)
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Size = UDim2.new(1, -10, 1, -45)
+ScrollFrame.Position = UDim2.new(0, 5, 0, 40)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.BorderSizePixel = 0
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollFrame.ScrollBarThickness = 4
+ScrollFrame.Parent = MainFrame
 
-local TPButton = Instance.new("TextButton")
-TPButton.Size = UDim2.new(0, 210, 0, 35)
-TPButton.Position = UDim2.new(0.5, -105, 0, 85)
-TPButton.Text = "TELEPORT (KLIK)"
-TPButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-TPButton.BackgroundColor3 = Color3.fromRGB(190, 80, 0)
-TPButton.Font = Enum.Font.SourceSansBold
-TPButton.TextSize = 15
-TPButton.Parent = MainFrame
-
-local ButtonCorner = Instance.new("UICorner")
-ButtonCorner.CornerRadius = UDim.new(0, 5)
-ButtonCorner.Parent = TPButton
+-- Layout otomatis agar tombol tersusun rapi ke bawah
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = ScrollFrame
+UIListLayout.SortOrder = Enum.SortOrder.Name
+UIListLayout.Padding = UDim.new(0, 5)
 
 -- ==========================================
--- 2. LOGIKA BYPASS ANTI-KICK
+-- 2. FUNGSI TELEPORT AMAN
 -- ==========================================
-local function findTarget(name)
-    for _, p in pairs(Players:GetPlayers()) do
-        if string.lower(p.Name):match("^" .. string.lower(name)) or string.lower(p.DisplayName):match("^" .. string.lower(name)) then
-            return p
-        end
-    end
-    return nil
-end
-
-TPButton.MouseButton1Click:Connect(function()
-    local text = NameInput.Text
-    if text == "" then return end
+local function teleportKePemain(targetPlayer)
+    local localPlayer = Players.LocalPlayer
+    if targetPlayer == localPlayer then return end -- Jangan TP ke diri sendiri
     
-    local targetPlayer = findTarget(text)
-    
-    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+    if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local targetPart = targetPlayer.Character.HumanoidRootPart
-        local localPlayer = Players.LocalPlayer
         local localChar = localPlayer.Character
         
         if localChar and localChar:FindFirstChild("HumanoidRootPart") then
             local root = localChar.HumanoidRootPart
             
-            -- STRATEGI: Alih-alih memindahkan instan, kita jatuhkan dulu 'anchor' replikasi
-            -- Menggunakan trik simulasi fisika jatuh bebas sejauh target
-            TPButton.Text = "Bypassing Adonis..."
+            -- Kasih jeda tipis dan hilangkan gaya gerak agar tidak memicu deteksi instan Adonis
+            root.Velocity = Vector3.new(0,0,0)
+            root.AssemblyLinearVelocity = Vector3.new(0,0,0)
             
-            -- Trik Click-to-Move bawaan Roblox (Sangat Aman dari Kick)
-            local humanoid = localChar:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                -- Memaksa karakter berjalan otomatis secara instan ke koordinat target
-                -- Adonis tidak nge-kick jika tipe pergerakannya adalah MoveTo() yang dieksekusi client
-                root.CFrame = targetPart.CFrame * CFrame.new(0, 2, 3) -- Teleport sedikit di belakang/atas target
-                
-                -- Menghilangkan gaya kejut agar server mendeteksi ini sebagai "Lag Spikes" biasa
-                task.wait(0.05)
-                root.Velocity = Vector3.new(0,0,0)
-            end
+            -- Teleport dengan offset aman (3 stud di atas target)
+            root.CFrame = targetPart.CFrame * CFrame.new(0, 3, 0)
             
-            TPButton.Text = "Sukses!"
-            task.wait(1)
-            TPButton.Text = "TELEPORT (KLIK)"
+            task.wait(0.05)
+            root.Velocity = Vector3.new(0,0,0)
         end
-    else
-        TPButton.Text = "Target Tidak Ada"
-        task.wait(1)
-        TPButton.Text = "TELEPORT (KLIK)"
     end
-end)
+end
+
+-- ==========================================
+-- 3. LOGIKA UPDATE DAFTAR PEMAIN
+-- ==========================================
+local function updateList()
+    -- Bersihkan list lama
+    for _, child in pairs(ScrollFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    
+    -- Ambil semua pemain di server dan buatkan tombolnya
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Players.LocalPlayer then
+            local pButton = Instance.new("TextButton")
+            pButton.Size = UDim2.new(1, -10, 0, 30)
+            pButton.Text = p.DisplayName .. " (@" .. p.Name .. ")"
+            pButton.TextColor3 = Color3.fromRGB(240, 240, 240)
+            pButton.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+            pButton.Font = Enum.Font.SourceSans
+            pButton.TextSize = 14
+            pButton.BorderSizePixel = 0
+            pButton.Parent = ScrollFrame
+            
+            local bCorner = Instance.new("UICorner")
+            bCorner.CornerRadius = UDim.new(0, 4)
+            bCorner.Parent = pButton
+            
+            -- Efek hover saat mouse di atas tombol
+            pButton.MouseEnter:Connect(function()
+                pButton.BackgroundColor3 = Color3.fromRGB(70, 70, 80)
+            end)
+            pButton.MouseLeave:Connect(function()
+                pButton.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+            end)
+            
+            -- Saat nama pemain di-klik, langsung teleport
+            pButton.MouseButton1Click:Connect(function()
+                pButton.Text = "Teleporting..."
+                pButton.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
+                teleportKePemain(p)
+                task.wait(0.5)
+                pButton.Text = p.DisplayName .. " (@" .. p.Name .. ")"
+                pButton.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+            end)
+        end
+    end
+    
+    -- Sesuaikan ukuran scroll otomatis berdasarkan jumlah pemain
+    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y)
+end
+
+-- Update otomatis kalau ada yang masuk/keluar server
+Players.PlayerAdded:Connect(updateList)
+Players.PlayerRemoving:Connect(updateList)
+
+-- Jalankan fungsi pertama kali saat di-execute
+updateList()
