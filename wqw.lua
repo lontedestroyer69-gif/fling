@@ -1,142 +1,144 @@
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-local humanoid = character:WaitForChild("Humanoid")
+-- ==========================================
+-- 1. MEMBUAT GUI (OTOMATIS MUNCUL DI LAYAR)
+-- ==========================================
+local ScreenGui = Instance.new("ScreenGui")
+-- Menggunakan CoreGui agar GUI tidak hilang saat karakter mati/respawn
+ScreenGui.Name = "SafeTP_GUI"
+ScreenGui.Parent = CoreGui
 
--- Konfigurasi Kecepatan Tinggi
-local FLYING = false
-local FLY_SPEED = 100      -- Kecepatan dasar (Bisa dinaikkan lewat tombol ']')
-local MIN_SPEED = 10       
-local MAX_SPEED = 250      -- Batas atas dinaikkan untuk mode kencang
-local BYPASS_INTERVAL = 3.5 -- Interval dipercepat untuk mengimbangi kecepatan tinggi
-local lastBypass = tick()
-local bypassActive = false
-local bypassDuration = 0.08 
+-- Frame Utama
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 250, 0, 130)
+MainFrame.Position = UDim2.new(0.5, -125, 0.4, -65)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true -- GUI bisa digeser/drag pakai mouse
+MainFrame.Parent = ScreenGui
 
--- Membuat UI Indikator Kecepatan di Pojok Layar
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "FlySpeedIndicator"
-if syn and syn.protect_gui then syn.protect_gui(screenGui) end 
-screenGui.Parent = CoreGui
+-- Efek Sudut Melengkung Frame
+local FrameCorner = Instance.new("UICorner")
+FrameCorner.CornerRadius = UDim.new(0, 8)
+FrameCorner.Parent = MainFrame
 
-local textLabel = Instance.new("TextLabel")
-textLabel.Size = UDim2.new(0, 200, 0, 50)
-textLabel.Position = UDim2.new(0, 20, 1, -70) 
-textLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-textLabel.BackgroundTransparency = 0.5
-textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-textLabel.TextSize = 18
-textLabel.Font = Enum.Font.SourceSansBold
-textLabel.Text = "Status: OFF | Speed: " .. FLY_SPEED
-textLabel.Parent = screenGui
+-- Judul GUI
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, 0, 0, 30)
+TitleLabel.Text = "BYPASS TELEPORT"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+TitleLabel.Font = Enum.Font.SourceSansBold
+TitleLabel.TextSize = 16
+TitleLabel.Parent = MainFrame
 
--- Menggunakan BodyVelocity & BodyGyro untuk stabilitas CFrame tingkat tinggi
-local bodyVelocity = Instance.new("BodyVelocity")
-bodyVelocity.maxForce = Vector3.new(0, 0, 0) -- Dimatikan saat awal
-bodyVelocity.velocity = Vector3.new(0, 0, 0)
-bodyVelocity.Parent = humanoidRootPart
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.Parent = TitleLabel
 
-local bodyGyro = Instance.new("BodyGyro")
-bodyGyro.maxTorque = Vector3.new(0, 0, 0)
-bodyGyro.Parent = humanoidRootPart
+-- Kotak Ketik Nama (TextBox)
+local NameInput = Instance.new("TextBox")
+NameInput.Size = UDim2.new(0, 210, 0, 35)
+NameInput.Position = UDim2.new(0.5, -105, 0, 45)
+NameInput.PlaceholderText = "Ketik Nama / Singkatan..."
+NameInput.Text = ""
+NameInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+NameInput.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+NameInput.Font = Enum.Font.SourceSans
+NameInput.TextSize = 16
+NameInput.Parent = MainFrame
 
--- Fungsi mendeteksi arah input pergerakan
-local function getDirection()
-	local direction = Vector3.new(0, 0, 0)
-	if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction = direction + workspace.CurrentCamera.CFrame.LookVector end
-	if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction = direction - workspace.CurrentCamera.CFrame.LookVector end
-	if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction = direction - workspace.CurrentCamera.CFrame.RightVector end
-	if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction = direction + workspace.CurrentCamera.CFrame.RightVector end
-	if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction = direction + Vector3.new(0, 1, 0) end
-	if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then direction = direction - Vector3.new(0, 1, 0) end
-	return direction.Unit
+-- Tombol Teleport
+local TPButton = Instance.new("TextButton")
+TPButton.Size = UDim2.new(0, 210, 0, 35)
+TPButton.Position = UDim2.new(0.5, -105, 0, 85)
+TPButton.Text = "TELEPORT"
+TPButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TPButton.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
+TPButton.Font = Enum.Font.SourceSansBold
+TPButton.TextSize = 16
+TPButton.Parent = MainFrame
+
+local ButtonCorner = Instance.new("UICorner")
+ButtonCorner.CornerRadius = UDim.new(0, 5)
+ButtonCorner.Parent = TPButton
+
+
+-- ==========================================
+-- 2. FUNGSI TELEPORT BYPASS ADONIS
+-- ==========================================
+local function safeTeleport(targetCFrame)
+    local player = Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
+    local rootPart = character:WaitForChild("HumanoidRootPart")
+    
+    rootPart.Velocity = Vector3.new(0, 0, 0)
+    rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    
+    local distance = (rootPart.Position - targetCFrame.Position).Magnitude
+    -- Pembagi 15 agar sangat aman dari deteksi rubberband Adonis terbaru
+    local duration = math.clamp(distance / 15, 0.2, 4) 
+    
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.QuadIn, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCFrame})
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Physics) end
+    
+    tween:Play()
+    tween.Completed:Wait()
+    
+    task.wait(0.2) -- Jeda sinkronisasi server
+    
+    if humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Running) end
+    rootPart.Velocity = Vector3.new(0, 0, 0)
+    rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 end
 
-local function updateUI()
-	local status = FLYING and "ON" or "OFF"
-	textLabel.Text = "Status: " .. status .. " | Speed: " .. FLY_SPEED
-	textLabel.TextColor3 = FLYING and Color3.fromRGB(255, 85, 85) or Color3.fromRGB(255, 255, 255) -- Merah jika mode kencang aktif
+-- Fungsi mencari pemain
+local function findTarget(name)
+    for _, p in pairs(Players:GetPlayers()) do
+        if string.lower(p.Name):match("^" .. string.lower(name)) or string.lower(p.DisplayName):match("^" .. string.lower(name)) then
+            return p
+        end
+    end
+    return nil
 end
 
--- Loop utama pergerakan (Optimasi Delta Posisi)
-RunService.RenderStepped:Connect(function(deltaTime)
-	if FLYING and humanoidRootPart then
-		local currentTime = tick()
-		
-		-- Siklus bypass diperketat untuk meredam deteksi jarak jauh
-		if not bypassActive and (currentTime - lastBypass > BYPASS_INTERVAL) then
-			bypassActive = true
-			lastBypass = currentTime
-		end
-		
-		if bypassActive then
-			if currentTime - lastBypass < bypassDuration then
-				bodyVelocity.maxForce = Vector3.new(0, 0, 0)
-				bodyGyro.maxTorque = Vector3.new(0, 0, 0)
-				humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
-				return
-			else
-				bypassActive = false
-				lastBypass = currentTime
-			end
-		end
 
-		-- Mode Aktif: Mengunci fisik gaya berat dan memanipulasi koordinat secara mikro
-		bodyVelocity.maxForce = Vector3.new(9e4, 9e4, 9e4)
-		bodyGyro.maxTorque = Vector3.new(9e4, 9e4, 9e4)
-		bodyGyro.cframe = workspace.CurrentCamera.CFrame
-		humanoid:ChangeState(Enum.HumanoidStateType.Climbing) 
-
-		local dir = getDirection()
-		if dir.Magnitude > 0 then
-			-- Formula Delta: Menggerakkan karakter berdasarkan kalkulasi frame-rate independen (mencegah rubberband)
-			local targetVelocity = dir * FLY_SPEED
-			bodyVelocity.velocity = targetVelocity
-			
-			-- Tambahan dorongan CFrame halus agar tidak tertinggal oleh pemeriksaan server
-			humanoidRootPart.CFrame = humanoidRootPart.CFrame + (targetVelocity * deltaTime * 0.1)
-		else
-			bodyVelocity.velocity = Vector3.new(0, -0.05, 0) -- Gaya gravitasi mikro semu
-		end
-	else
-		bodyVelocity.maxForce = Vector3.new(0, 0, 0)
-		bodyGyro.maxTorque = Vector3.new(0, 0, 0)
-	end
-end)
-
--- Deteksi Tombol
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
-	
-	if input.KeyCode == Enum.KeyCode.E then
-		FLYING = not FLYING
-		if not FLYING then
-			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-		end
-		updateUI()
-		
-	elseif input.KeyCode == Enum.KeyCode.LeftBracket then
-		FLY_SPEED = math.max(MIN_SPEED, FLY_SPEED - 20) -- Lompatan speed diperbesar
-		updateUI()
-		
-	elseif input.KeyCode == Enum.KeyCode.RightBracket then
-		FLY_SPEED = math.min(MAX_SPEED, FLY_SPEED + 20)
-		updateUI()
-	end
-end)
-
-player.CharacterAdded:Connect(function(newChar)
-	character = newChar
-	humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-	humanoid = character:WaitForChild("Humanoid")
-	bodyVelocity.Parent = humanoidRootPart
-	bodyGyro.Parent = humanoidRootPart
-	FLYING = false
-	bypassActive = false
-	updateUI()
+-- ==========================================
+-- 3. LOGIKA TOMBOL SAAT DIKLIK
+-- ==========================================
+TPButton.MouseButton1Click:Connect(function()
+    local text = NameInput.Text
+    if text == "" then 
+        TPButton.Text = "Isi nama dulu!"
+        task.wait(1)
+        TPButton.Text = "TELEPORT"
+        return 
+    end
+    
+    local targetPlayer = findTarget(text)
+    
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local targetCFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+        TPButton.Text = "Teleporting..."
+        TPButton.BackgroundColor3 = Color3.fromRGB(200, 120, 0)
+        
+        safeTeleport(targetCFrame)
+        
+        TPButton.Text = "Sukses!"
+        TPButton.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
+        task.wait(1)
+        TPButton.Text = "TELEPORT"
+    else
+        TPButton.Text = "Tidak ditemukan / Mati"
+        TPButton.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+        task.wait(1.5)
+        TPButton.Text = "TELEPORT"
+        TPButton.BackgroundColor3 = Color3.fromRGB(0, 150, 70)
+    end
 end)
