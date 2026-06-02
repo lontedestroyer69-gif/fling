@@ -1,6 +1,9 @@
 -- =============================================================================
 -- INVISIBLE CONTROLLER - VERSION 5.0 (100% MATCH ORIGINAL LOGIC)
+--  KENAPA GA MAU KE UPDATE
 -- =============================================================================
+
+
 local SCRIPT_VERSION = "v5.0"
 print("=========================================")
 print("Invisible Controller " .. SCRIPT_VERSION .. " successfully executed!")
