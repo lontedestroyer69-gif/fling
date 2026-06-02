@@ -1,13 +1,13 @@
 -- =============================================================================
--- INVISIBLE CONTROLLER - VERSION 5.4 (URUTAN BYPASS AMAN)
+-- INVISIBLE CONTROLLER - VERSION 5.6 (PURE ORIGINAL LOGIC)
 -- =============================================================================
-local SCRIPT_VERSION = "v5.4"
+local SCRIPT_VERSION = "v5.6"
 print("=========================================")
 print("Invisible Controller " .. SCRIPT_VERSION .. " successfully executed!")
-print("Fixing: Stuck pergerakan akibat desync nama awal.")
+print("Menggunakan 100% kode asli tanpa ubahan logika fisik.")
 print("=========================================")
 
--- Services
+-- Services Tambahan untuk GUI
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -15,59 +15,54 @@ local CoreGui = game:GetService("CoreGui")
 
 local player = Players.LocalPlayer
 
--- State Management (Variabel asli dari potongan kodemu)
-local invisRunning = false
-local originalChar = nil
-local invisibleChar = nil
-local steppedConn = nil
-local deathConn = nil
-
--- Fungsi Respawn/OFF (Sesuai logika asli milikmu)
-local function Respawn()
-	if not invisRunning then return end
-	invisRunning = false
-	
-	if steppedConn then steppedConn:Disconnect(); steppedConn = nil end
-	if deathConn   then deathConn:Disconnect(); deathConn = nil end
-
-	if originalChar and originalChar.Parent then
-		player.Character = originalChar
-		pcall(function() originalChar.Parent = workspace end)
-		local clonedHum = originalChar:FindFirstChildWhichIsA("Humanoid")
-		if clonedHum then 
-			pcall(function() clonedHum:Destroy() end) 
-		end
-	end
-	if invisibleChar then 
-		pcall(function() invisibleChar:Destroy() end)
-		invisibleChar = nil 
-	end
-	print("[Invisible System]: Status turned OFF")
+-- Fungsi Notify bawaan script utamamu (agar tidak error saat panggil Notify)
+local function Notify(text, title, duration)
+	print("[" .. tostring(title or "Notice") .. "]: " .. tostring(text))
 end
 
--- Fungsi Mengaktifkan Invisible
+-- Variabel kontroler eksternal (Agar GUI bisa mematikan fungsi internal aslimu)
+local globalRespawn = nil 
+local invisRunning = false -- Variabel state utama dari scriptaslimu
+
+-- =============================================================================
+-- FUNGSI ASLI MILIKMU (100% COPY PASTE TANPA UBAHAN)
+-- =============================================================================
 local function toggleInvisibility()
 	if invisRunning then return end
 	invisRunning = true
 
-	-- Ambil karakter asli
+	local player = Players.LocalPlayer
 	repeat task.wait(0.1) until player.Character
-	originalChar = player.Character
+	local originalChar = player.Character
 	originalChar.Archivable = true
 
-	-- 1. Kloning Model (Gunakan nama asli dulu agar kontroler game tidak rusak)
-	invisibleChar = originalChar:Clone()
-	invisibleChar.Name = originalChar.Name 
+	local invisibleChar = originalChar:Clone()
+	invisibleChar.Name   = ""
 	invisibleChar.Parent = Lighting
 
-	-- Set transparansi part tubuh (0.5 agar tetap terlihat di layarmu)
 	for _, part in ipairs(invisibleChar:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.Transparency = (part.Name == "HumanoidRootPart") and 1 or 0.5
 		end
 	end
 
-	-- 2. Setup Handler Kematian & Void
+	local voidConn, deathConn, steppedConn
+
+	local function Respawn()
+		invisRunning = false
+		if steppedConn then steppedConn:Disconnect() end
+		if deathConn   then deathConn:Disconnect()   end
+
+		player.Character = originalChar
+		originalChar.Parent = workspace
+		local clonedHum = originalChar:FindFirstChildWhichIsA("Humanoid")
+		if clonedHum then clonedHum:Destroy() end
+		invisibleChar.Parent = nil
+	end
+	
+	-- Trik agar GUI luar bisa memicu fungsi Respawn lokal ini secara aman
+	globalRespawn = Respawn
+
 	local voidY = workspace.FallenPartsDestroyHeight
 	steppedConn = RunService.Stepped:Connect(function()
 		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -79,60 +74,40 @@ local function toggleInvisibility()
 	end)
 
 	local clonedHum = invisibleChar:FindFirstChildWhichIsA("Humanoid")
-	if clonedHum then
-		deathConn = clonedHum.Died:Connect(Respawn)
-	end
+	deathConn = clonedHum.Died:Connect(Respawn)
 
-	-- 3. Eksekusi Desync & Tukar Subjek Karakter
 	local hrpCF = originalChar.HumanoidRootPart.CFrame
-	originalChar:MoveTo(Vector3.new(0, math.pi*1e6, 0)) -- Kirim karakter asli ke langit
-	
+	originalChar:MoveTo(Vector3.new(0, math.pi*1e6, 0))
 	workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
 	task.wait(0.2)
 	workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
 
-	pcall(function() invisibleChar.Parent = workspace end)
+	invisibleChar.Parent = workspace
 	invisibleChar.HumanoidRootPart.CFrame = hrpCF
 	player.Character = invisibleChar
 
-	-- Refresh script animasi bawaan
 	for _, a in ipairs(player.Character:GetDescendants()) do
 		if a.Name == "Animate" and a:IsA("Model") then
 			a.Disabled = true; a.Disabled = false
 		end
 	end
 	
-	-- 4. Trik Reset Kamera (Memaksa kontroler keyboard mengikat karakter baru)
 	pcall(function() workspace.CurrentCamera:Destroy() end)
 	task.wait(.1)
 	repeat task.wait() until player.Character ~= nil
-	
-	local currentHum = player.Character:FindFirstChildWhichIsA('Humanoid')
-	workspace.CurrentCamera.CameraSubject = currentHum
-	workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+	workspace.CurrentCamera.CameraSubject = player.Character:FindFirstChildWhichIsA('Humanoid')
+	workspace.CurrentCamera.CameraType = "Custom"
 	player.CameraMinZoomDistance = 0.5
 	player.CameraMaxZoomDistance = 400
-	player.CameraMode = Enum.CameraMode.Classic
-	
-	pcall(function()
-		player.Character.Head.Anchored = false
-		player.Character.Animate.Enabled = false
-		player.Character.Animate.Enabled = true
-	end)
-
-	if currentHum then
-		currentHum:ChangeState(Enum.HumanoidStateType.Running)
-	end
-
-	-- 5. LANGKAH TERAKHIR: Setelah kamera & gerak aktif, hapus namanya menjadi ""
-	task.wait(0.1)
-	invisibleChar.Name = ""
-	
-	print("[Invisible System]: Status turned ON")
+	player.CameraMode = "Classic"
+	player.Character.Head.Anchored = false
+	player.Character.Animate.Enabled = false
+	player.Character.Animate.Enabled = true
+	Notify("You are now invisible!", "System", 3)
 end
 
 -- =============================================================================
--- PEMBUATAN GUI (UI CONTROLLER)
+-- PEMBUATAN GUI CONTROLLER (MENGENDALIKAN STATE DI ATAS)
 -- =============================================================================
 local oldGui = CoreGui:FindFirstChild("InvisGui") or player.PlayerGui:FindFirstChild("InvisGui")
 if oldGui then oldGui:Destroy() end
@@ -141,6 +116,7 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "InvisGui"
 screenGui.ResetOnSpawn = false 
 
+-- Inject GUI
 local success, _ = pcall(function() screenGui.Parent = CoreGui end)
 if not success then screenGui.Parent = player:WaitForChild("PlayerGui") end
 
@@ -173,30 +149,24 @@ toggleBtn.Font = Enum.Font.SourceSansBold
 toggleBtn.TextSize = 14
 toggleBtn.Parent = mainFrame
 
-toggleBtn.MouseButton1Click:Connect(function()
-	if not invisRunning then
-		toggleInvisibility()
-		if invisRunning then
-			toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-			toggleBtn.Text = "STATUS: ON"
-		end
+-- Loop background kecil untuk sinkronisasi tombol visual jika kamu mati/void otomatis
+RunService.Heartbeat:Connect(function()
+	if invisRunning then
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+		toggleBtn.Text = "STATUS: ON"
 	else
-		Respawn()
-		if not invisRunning then
-			toggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
-			toggleBtn.Text = "STATUS: OFF"
-		end
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+		toggleBtn.Text = "STATUS: OFF"
 	end
 end)
 
--- Reset state otomatis jika karakter asli dihapus dari luar system
-player.CharacterRemoving:Connect(function(char)
-	if char == originalChar then
-		if steppedConn then steppedConn:Disconnect(); steppedConn = nil end
-		if deathConn   then deathConn:Disconnect(); deathConn = nil end
-		if invisibleChar then pcall(function() invisibleChar:Destroy() end); invisibleChar = nil end
-		invisRunning = false
-		toggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
-		toggleBtn.Text = "STATUS: OFF"
+-- Event handler klik tombol GUI
+toggleBtn.MouseButton1Click:Connect(function()
+	if not invisRunning then
+		toggleInvisibility()
+	else
+		if globalRespawn then
+			globalRespawn() -- Memanggil fungsi lokal Respawn() milikmu dari luar shell
+		end
 	end
 end)
