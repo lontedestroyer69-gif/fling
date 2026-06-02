@@ -1,10 +1,10 @@
 -- =============================================================================
--- INVISIBLE CONTROLLER - VERSION 5.3 (FIXED COMPLETION)
+-- INVISIBLE CONTROLLER - VERSION 5.4 (URUTAN BYPASS AMAN)
 -- =============================================================================
-local SCRIPT_VERSION = "v5.3"
+local SCRIPT_VERSION = "v5.4"
 print("=========================================")
 print("Invisible Controller " .. SCRIPT_VERSION .. " successfully executed!")
-print("Logika 100% menggunakan script awal milikmu.")
+print("Fixing: Stuck pergerakan akibat desync nama awal.")
 print("=========================================")
 
 -- Services
@@ -22,7 +22,7 @@ local invisibleChar = nil
 local steppedConn = nil
 local deathConn = nil
 
--- Fungsi Respawn/OFF (Mengikuti persis logika aslimu)
+-- Fungsi Respawn/OFF (Sesuai logika asli milikmu)
 local function Respawn()
 	if not invisRunning then return end
 	invisRunning = false
@@ -45,7 +45,7 @@ local function Respawn()
 	print("[Invisible System]: Status turned OFF")
 end
 
--- Fungsi Mengaktifkan Invisible (Mengikuti persis logika aslimu)
+-- Fungsi Mengaktifkan Invisible
 local function toggleInvisibility()
 	if invisRunning then return end
 	invisRunning = true
@@ -55,12 +55,12 @@ local function toggleInvisibility()
 	originalChar = player.Character
 	originalChar.Archivable = true
 
-	-- 1. Kloning Model
+	-- 1. Kloning Model (Gunakan nama asli dulu agar kontroler game tidak rusak)
 	invisibleChar = originalChar:Clone()
-	invisibleChar.Name   = "InvisPlayer" -- Nama sementara agar part-nya tidak error saat diakses game
+	invisibleChar.Name = originalChar.Name 
 	invisibleChar.Parent = Lighting
 
-	-- Set transparansi part tubuh (Di layarmu transparan 0.5, di server invisible total)
+	-- Set transparansi part tubuh (0.5 agar tetap terlihat di layarmu)
 	for _, part in ipairs(invisibleChar:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.Transparency = (part.Name == "HumanoidRootPart") and 1 or 0.5
@@ -85,7 +85,8 @@ local function toggleInvisibility()
 
 	-- 3. Eksekusi Desync & Tukar Subjek Karakter
 	local hrpCF = originalChar.HumanoidRootPart.CFrame
-	originalChar:MoveTo(Vector3.new(0, math.pi*1e6, 0)) -- Buang karakter asli ke atas langit
+	originalChar:MoveTo(Vector3.new(0, math.pi*1e6, 0)) -- Kirim karakter asli ke langit
+	
 	workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
 	task.wait(0.2)
 	workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
@@ -94,29 +95,39 @@ local function toggleInvisibility()
 	invisibleChar.HumanoidRootPart.CFrame = hrpCF
 	player.Character = invisibleChar
 
-	-- Refresh script animasi bawaan roblox
+	-- Refresh script animasi bawaan
 	for _, a in ipairs(player.Character:GetDescendants()) do
 		if a.Name == "Animate" and a:IsA("Model") then
 			a.Disabled = true; a.Disabled = false
 		end
 	end
 	
-	-- 4. Trik Reset Kamera (Kunci bypass agar karakter kloningan bisa jalan)
+	-- 4. Trik Reset Kamera (Memaksa kontroler keyboard mengikat karakter baru)
 	pcall(function() workspace.CurrentCamera:Destroy() end)
 	task.wait(.1)
 	repeat task.wait() until player.Character ~= nil
 	
-	workspace.CurrentCamera.CameraSubject = player.Character:FindFirstChildWhichIsA('Humanoid')
+	local currentHum = player.Character:FindFirstChildWhichIsA('Humanoid')
+	workspace.CurrentCamera.CameraSubject = currentHum
 	workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
 	player.CameraMinZoomDistance = 0.5
 	player.CameraMaxZoomDistance = 400
 	player.CameraMode = Enum.CameraMode.Classic
-	player.Character.Head.Anchored = false
-	player.Character.Animate.Enabled = false
-	player.Character.Animate.Enabled = true
+	
+	pcall(function()
+		player.Character.Head.Anchored = false
+		player.Character.Animate.Enabled = false
+		player.Character.Animate.Enabled = true
+	end)
 
-	-- Kosongkan nama model di akhir agar server desync mengenalnya sebagai model tanpa nama
+	if currentHum then
+		currentHum:ChangeState(Enum.HumanoidStateType.Running)
+	end
+
+	-- 5. LANGKAH TERAKHIR: Setelah kamera & gerak aktif, hapus namanya menjadi ""
+	task.wait(0.1)
 	invisibleChar.Name = ""
+	
 	print("[Invisible System]: Status turned ON")
 end
 
