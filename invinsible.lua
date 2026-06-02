@@ -1,3 +1,12 @@
+-- =============================================================================
+-- INVISIBLE CONTROLLER - VERSION 4.0 (STABLE)
+-- =============================================================================
+local SCRIPT_VERSION = "v4.0"
+print("=========================================")
+print("Invisible Controller " .. SCRIPT_VERSION .. " successfully executed!")
+print("Created by: AI Assistant")
+print("=========================================")
+
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -28,7 +37,7 @@ local function turnOff()
     cleanup()
 
     if originalChar and originalChar.Parent then
-        -- Ambil posisi terakhir dari kamera atau karakter palsu sebelum dimatikan
+        -- Ambil posisi terakhir dari karakter palsu sebelum dimatikan
         local currentCF = workspace.CurrentCamera.CFrame
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             currentCF = player.Character.HumanoidRootPart.CFrame
@@ -38,7 +47,7 @@ local function turnOff()
         player.Character = originalChar
         originalChar.Parent = workspace
         
-        local hrp = originalChar:FindFirstChild("HumanoidRootPart")
+        local hrp = originalChar:WaitForChild("HumanoidRootPart", 5)
         if hrp then 
             hrp.Anchored = false
             hrp.CFrame = currentCF 
@@ -57,22 +66,25 @@ local function turnOff()
             hum:ChangeState(Enum.HumanoidStateType.Running)
         end
     end
-    print("Invisible: OFF (Character Restored)")
+    print("[Invisible System]: Status turned OFF")
 end
 
 -- Fungsi Mengaktifkan Invisible (ON)
 local function turnOn()
     if isInvis then return end
     
-    originalChar = player.Character
-    if not originalChar or not originalChar:FindFirstChild("HumanoidRootPart") then 
-        warn("Karakter asli belum siap.")
+    -- PERBAIKAN: Memastikan karakter benar-benar siap dan menunggu jika belum ada
+    originalChar = player.Character or player.CharacterAdded:Wait()
+    local hrpCheck = originalChar:WaitForChild("HumanoidRootPart", 5)
+    
+    if not originalChar or not hrpCheck then 
+        warn("[Invisible System]: Karakter asli belum siap sepenuhnya di Workspace! Silakan coba lagi dalam beberapa detik.")
         return 
     end
     
     isInvis = true
     originalChar.Archivable = true
-    originalCFrame = originalChar.HumanoidRootPart.CFrame
+    originalCFrame = hrpCheck.CFrame
 
     -- 1. Kloning Karakter
     invisibleChar = originalChar:Clone()
@@ -81,7 +93,6 @@ local function turnOn()
     for _, part in ipairs(invisibleChar:GetDescendants()) do
         if part:IsA("BasePart") then
             part.Anchored = false
-            -- Buat part tubuh menjadi transparan (0.5), RootPart tetap (1)
             part.Transparency = (part.Name == "HumanoidRootPart") and 1 or 0.5
         end
     end
@@ -110,7 +121,7 @@ local function turnOn()
     -- 3. Singkronisasi & Pemindahan Karakter Asli (Desync)
     originalChar:MoveTo(Vector3.new(0, math.pi * 1e6, 0))
     
-    -- Trik Utama dari Script Asli: Hancurkan Kamera untuk Reset CoreScripts Kontroler
+    -- Hancurkan Kamera untuk Reset CoreScripts Kontroler Roblox
     pcall(function() workspace.CurrentCamera:Destroy() end)
     task.wait(0.1)
 
@@ -143,7 +154,7 @@ local function turnOn()
         fakeHum:ChangeState(Enum.HumanoidStateType.Running)
     end
 
-    print("Invisible: ON (Camera Re-bound & Controls Active)")
+    print("[Invisible System]: Status turned ON")
 end
 
 -- =============================================================================
@@ -154,13 +165,13 @@ if oldGui then oldGui:Destroy() end
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "InvisGui"
-screenGui.ResetOnSpawn = false -- Mencegah GUI hilang saat karakter ditukar
+screenGui.ResetOnSpawn = false 
 
 local success, _ = pcall(function() screenGui.Parent = CoreGui end)
 if not success then screenGui.Parent = player:WaitForChild("PlayerGui") end
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 150, 0, 60)
+mainFrame.Size = UDim2.new(0, 160, 0, 65)
 mainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BorderSizePixel = 2
@@ -172,10 +183,10 @@ mainFrame.Parent = screenGui
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0.4, 0)
 title.BackgroundTransparency = 1
-title.Text = "INVIS CONTROLLER v3"
+title.Text = "INVIS CONTROLLER " .. SCRIPT_VERSION
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.SourceSansBold
-title.TextSize = 12
+title.TextSize = 11
 title.Parent = mainFrame
 
 local toggleBtn = Instance.new("TextButton")
@@ -204,7 +215,7 @@ toggleBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Jika karakter benar-benar reset dari menu internal roblox
+-- Reset state jika dari menu roblox player sengaja memilih 'Reset Character'
 player.CharacterRemoving:Connect(function(char)
     if char == originalChar then
         cleanup()
