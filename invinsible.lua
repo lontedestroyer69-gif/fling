@@ -1,10 +1,10 @@
 -- =============================================================================
--- INVISIBLE CONTROLLER - VERSION 4.0 (STABLE)
+-- INVISIBLE CONTROLLER - VERSION 5.0 (100% MATCH ORIGINAL LOGIC)
 -- =============================================================================
-local SCRIPT_VERSION = "v4.0"
+local SCRIPT_VERSION = "v5.0"
 print("=========================================")
 print("Invisible Controller " .. SCRIPT_VERSION .. " successfully executed!")
-print("Created by: AI Assistant")
+print("Logika 100% disesuaikan dengan script awal.")
 print("=========================================")
 
 -- Services
@@ -15,145 +15,101 @@ local CoreGui = game:GetService("CoreGui")
 
 local player = Players.LocalPlayer
 
--- State Management
-local isInvis = false
+-- State Management (Sesuai variabel script asli)
+local invisRunning = false
 local originalChar = nil
 local invisibleChar = nil
 local steppedConn = nil
 local deathConn = nil
-local originalCFrame = nil
 
--- Fungsi membersihkan koneksi & objek palsu
-local function cleanup()
+-- Fungsi Respawn/OFF (Salinan persis dari logika script asli)
+local function Respawn()
+    if not invisRunning then return end
+    invisRunning = false
+    
     if steppedConn then steppedConn:Disconnect(); steppedConn = nil end
-    if deathConn then deathConn:Disconnect(); deathConn = nil end
-    if invisibleChar then invisibleChar:Destroy(); invisibleChar = nil end
-end
+    if deathConn   then deathConn:Disconnect(); deathConn = nil end
 
--- Fungsi Mematikan Invisible (OFF)
-local function turnOff()
-    if not isInvis then return end
-    isInvis = false
-    cleanup()
-
-    if originalChar and originalChar.Parent then
-        -- Ambil posisi terakhir dari karakter palsu sebelum dimatikan
-        local currentCF = workspace.CurrentCamera.CFrame
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            currentCF = player.Character.HumanoidRootPart.CFrame
-        end
-
-        -- Kembalikan Karakter Asli
+    if originalChar then
         player.Character = originalChar
         originalChar.Parent = workspace
-        
-        local hrp = originalChar:WaitForChild("HumanoidRootPart", 5)
-        if hrp then 
-            hrp.Anchored = false
-            hrp.CFrame = currentCF 
-        end
-
-        -- Paksa Reset Kamera dengan menghancurkannya agar mengikat kembali ke karakter asli
-        pcall(function() workspace.CurrentCamera:Destroy() end)
-        task.wait(0.1)
-        
-        repeat task.wait() until player.Character == originalChar and workspace.CurrentCamera
-        
-        local hum = originalChar:FindFirstChildWhichIsA("Humanoid")
-        if hum then 
-            workspace.CurrentCamera.CameraSubject = hum
-            workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
-            hum:ChangeState(Enum.HumanoidStateType.Running)
-        end
+        local clonedHum = originalChar:FindFirstChildWhichIsA("Humanoid")
+        if clonedHum then clonedHum:Destroy() end
     end
+    if invisibleChar then invisibleChar.Parent = nil; invisibleChar = nil end
     print("[Invisible System]: Status turned OFF")
 end
 
 -- Fungsi Mengaktifkan Invisible (ON)
-local function turnOn()
-    if isInvis then return end
-    
-    -- PERBAIKAN: Memastikan karakter benar-benar siap dan menunggu jika belum ada
-    originalChar = player.Character or player.CharacterAdded:Wait()
-    local hrpCheck = originalChar:WaitForChild("HumanoidRootPart", 5)
-    
-    if not originalChar or not hrpCheck then 
-        warn("[Invisible System]: Karakter asli belum siap sepenuhnya di Workspace! Silakan coba lagi dalam beberapa detik.")
-        return 
-    end
-    
-    isInvis = true
-    originalChar.Archivable = true
-    originalCFrame = hrpCheck.CFrame
+local function toggleInvisibility()
+    if invisRunning then return end
+    invisRunning = true
 
-    -- 1. Kloning Karakter
+    -- Tunggu karakter sampai siap
+    repeat task.wait(0.1) until player.Character
+    originalChar = player.Character
+    originalChar.Archivable = true
+
+    -- 1. Kloning Karakter (Karakter Transparan di Layarmu, Invisible di Server)
     invisibleChar = originalChar:Clone()
-    invisibleChar.Name = "InvisPlayer"
-    
+    invisibleChar.Name   = ""
+    invisibleChar.Parent = Lighting
+
     for _, part in ipairs(invisibleChar:GetDescendants()) do
         if part:IsA("BasePart") then
-            part.Anchored = false
+            -- RootPart tetap 1 (transparan penuh), part tubuh lain 0.5 (setengah transparan)
             part.Transparency = (part.Name == "HumanoidRootPart") and 1 or 0.5
         end
     end
 
-    -- 2. Handler Auto-Respawn jika mati atau jatuh ke Void saat ON
-    local function autoRespawn()
-        if not isInvis then return end
-        isInvis = false
-        cleanup()
-        player.Character = originalChar
-        originalChar.Parent = workspace
-        local hum = originalChar:FindFirstChildWhichIsA("Humanoid")
-        if hum then hum:Destroy() end -- Memicu respawn bawaan game
-    end
-
+    -- 2. Setup Deteksi Void & Kematian (Urutan script asli)
     local voidY = workspace.FallenPartsDestroyHeight
     steppedConn = RunService.Stepped:Connect(function()
-        if not isInvis or not player.Character then return end
-        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-        if hrp and hrp.Position.Y <= voidY then autoRespawn() end
+        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        local y = hrp.Position.Y
+        if (voidY < 0 and y <= voidY) or (voidY >= 0 and y >= voidY) then
+            Respawn()
+        end
     end)
 
-    local fakeHum = invisibleChar:FindFirstChildWhichIsA("Humanoid")
-    if fakeHum then deathConn = fakeHum.Died:Connect(autoRespawn) end
+    local clonedHum = invisibleChar:FindFirstChildWhichIsA("Humanoid")
+    if clonedHum then
+        deathConn = clonedHum.Died:Connect(Respawn)
+    end
 
-    -- 3. Singkronisasi & Pemindahan Karakter Asli (Desync)
-    originalChar:MoveTo(Vector3.new(0, math.pi * 1e6, 0))
-    
-    -- Hancurkan Kamera untuk Reset CoreScripts Kontroler Roblox
-    pcall(function() workspace.CurrentCamera:Destroy() end)
-    task.wait(0.1)
+    -- 3. Trik Desync Instan & Switch Player Subject (Copied from your script)
+    local hrpCF = originalChar.HumanoidRootPart.CFrame
+    originalChar:MoveTo(Vector3.new(0, math.pi*1e6, 0)) -- Kirim ke atas sesaat untuk desync server
+    workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
+    task.wait(0.2)
+    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
 
-    -- Masukkan clone ke workspace dan set posisi awal
     invisibleChar.Parent = workspace
-    invisibleChar.HumanoidRootPart.CFrame = originalCFrame
-    
-    -- Alihkan Karakter Utama Player ke Model Clone
+    invisibleChar.HumanoidRootPart.CFrame = hrpCF
     player.Character = invisibleChar
 
-    -- Tunggu sampai karakter teregistrasi oleh engine
-    repeat task.wait() until player.Character == invisibleChar and workspace.CurrentCamera
-
-    -- 4. Pengikatan Ulang Kamera dan Kontrol Input ke Karakter Baru
-    workspace.CurrentCamera.CameraSubject = fakeHum
-    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
-    
-    player.CameraMinZoomDistance = 0.5
-    player.CameraMaxZoomDistance = 400
-    player.CameraMode = Enum.CameraMode.Classic
-
-    -- Jalankan kembali script animasi bawaan pada clone
-    for _, anim in ipairs(invisibleChar:GetDescendants()) do
-        if anim.Name == "Animate" and anim:IsA("LocalScript") then
-            anim.Disabled = true; anim.Disabled = false
+    -- Mengaktifkan ulang script animasi bawaan game
+    for _, a in ipairs(player.Character:GetDescendants()) do
+        if a.Name == "Animate" and a:IsA("Model") then
+            a.Disabled = true; a.Disabled = false
         end
     end
-
-    if fakeHum then
-        fakeHum:ChangeState(Enum.HumanoidStateType.Running)
-    end
-
+    
+    -- 4. Kamera Fix & Re-Bind (Mengikuti bypass script aslimu)
+    pcall(function() workspace.CurrentCamera:Destroy() end)
+    task.wait(.1)
+    repeat task.wait() until player.Character ~= nil
+    
+    workspace.CurrentCamera.CameraSubject = player.Character:FindFirstChildWhichIsA('Humanoid')
+    workspace.CurrentCamera.CameraType = "Custom"
+    player.CameraMinZoomDistance = 0.5
+    player.CameraMaxZoomDistance = 400
+    player.CameraMode = "Classic"
+    player.Character.Head.Anchored = false
+    player.Character.Animate.Enabled = false
+    player.Character.Animate.Enabled = true
+    
     print("[Invisible System]: Status turned ON")
 end
 
@@ -200,26 +156,28 @@ toggleBtn.TextSize = 14
 toggleBtn.Parent = mainFrame
 
 toggleBtn.MouseButton1Click:Connect(function()
-    if not isInvis then
-        turnOn()
-        if isInvis then
+    if not invisRunning then
+        toggleInvisibility()
+        if invisRunning then
             toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
             toggleBtn.Text = "STATUS: ON"
         end
     else
-        turnOff()
-        if not isInvis then
+        Respawn()
+        if not invisRunning then
             toggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
             toggleBtn.Text = "STATUS: OFF"
         end
     end
 end)
 
--- Reset state jika dari menu roblox player sengaja memilih 'Reset Character'
+-- Reset state otomatis jika mati normal karena game
 player.CharacterRemoving:Connect(function(char)
     if char == originalChar then
-        cleanup()
-        isInvis = false
+        if steppedConn then steppedConn:Disconnect(); steppedConn = nil end
+        if deathConn   then deathConn:Disconnect(); deathConn = nil end
+        if invisibleChar then invisibleChar:Destroy(); invisibleChar = nil end
+        invisRunning = false
         toggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
         toggleBtn.Text = "STATUS: OFF"
     end
